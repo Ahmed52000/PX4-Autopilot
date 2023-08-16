@@ -68,6 +68,7 @@ public:
 	~RTL() = default;
 
 	enum class RtlType {
+		NONE,
 		RTL_DIRECT,
 		RTL_DIRECT_MISSION_LAND,
 		RTL_MISSION_FAST,
@@ -115,13 +116,31 @@ private:
 	void setSafepointAsDestination(RtlDirect::RtlPosition &rtl_position, const mission_safe_point_s &mission_safe_point);
 
 	/**
-	 * @brief
+	 * @brief calculate rturn altitude from cone half angle
 	 *
-	 * @param cone_half_angle_deg
-	 * @return float
+	 * @param[in] rtl_position landing position of the rtl
+	 * @param[in] cone_half_angle_deg hlf angle of the cone [deg]
+	 * @return return altitude
 	 */
 	float calculate_return_alt_from_cone_half_angle(const RtlDirect::RtlPosition &rtl_position, float cone_half_angle_deg);
 
+	/**
+	 * @brief initialize RTL type
+	 *
+	 * @param[in] rtl_type RTL type to initialize
+	 */
+	void init_rtl_type(RtlType rtl_type);
+
+	/**
+	 * @brief Deinitialize RTL type
+	 *
+	 */
+	void deinit_rtl_type();
+
+	/**
+	 * @brief Update parameters
+	 *
+	 */
 	void parameters_update();
 
 	enum class DatamanState {
@@ -134,7 +153,14 @@ private:
 
 	hrt_abstime _destination_check_time{0};
 
-	RtlType _rtl_type{RtlType::RTL_DIRECT};
+	union RtlTypeHandle {
+		RtlDirect *_rtl_direct;
+		RtlDirectMissionLand *_rtl_direct_mission_land;
+		RtlMissionFast *_rtl_mission;
+		RtlMissionFastReverse *_rtl_mission_reverse;
+	} _rtl_type_handle{nullptr};
+
+	RtlType _rtl_type{RtlType::NONE};
 
 	DatamanState _dataman_state{DatamanState::UpdateRequestWait};
 	DatamanState _error_state{DatamanState::UpdateRequestWait};
@@ -147,14 +173,6 @@ private:
 	int16_t _mission_counter = -1;
 
 	mission_stats_entry_s _stats;
-
-	RtlDirect _rtl_direct;
-
-	RtlDirectMissionLand _rtl_direct_mission_land;
-
-	RtlMissionFast _rtl_mission;
-
-	RtlMissionFastReverse _rtl_mission_reverse;
 
 	bool _enforce_rtl_alt{false};
 

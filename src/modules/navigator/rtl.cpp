@@ -49,14 +49,13 @@
 using namespace time_literals;
 using namespace math;
 
+static constexpr float MIN_DIST_THRESHOLD = 2.f;
+
 RTL::RTL(Navigator *navigator) :
 	NavigatorMode(navigator),
-	ModuleParams(navigator),
-	_rtl_direct(navigator),
-	_rtl_direct_mission_land(navigator),
-	_rtl_mission(navigator),
-	_rtl_mission_reverse(navigator)
+	ModuleParams(navigator)
 {
+	init_rtl_type(RtlType::RTL_DIRECT);
 }
 
 void RTL::updateDatamanCache()
@@ -163,19 +162,19 @@ void RTL::on_inactivation()
 {
 	switch (_rtl_type) {
 	case RtlType::RTL_MISSION_FAST:
-		_rtl_mission.on_inactivation();
+		_rtl_type_handle._rtl_mission->on_inactivation();
 		break;
 
 	case RtlType::RTL_MISSION_FAST_REVERSE:
-		_rtl_mission_reverse.on_inactivation();
+		_rtl_type_handle._rtl_mission_reverse->on_inactivation();
 		break;
 
 	case RtlType::RTL_DIRECT:
-		_rtl_direct.on_inactivation();
+		_rtl_type_handle._rtl_direct->on_inactivation();
 		break;
 
 	case RtlType::RTL_DIRECT_MISSION_LAND:
-		_rtl_direct_mission_land.on_inactivation();
+		_rtl_type_handle._rtl_direct_mission_land->on_inactivation();
 		break;
 
 	default:
@@ -194,10 +193,26 @@ void RTL::on_inactive()
 
 	parameters_update();
 
-	_rtl_mission.on_inactive();
-	_rtl_mission_reverse.on_inactive();
-	_rtl_direct.on_inactive();
-	_rtl_direct_mission_land.on_inactive();
+	switch (_rtl_type) {
+	case RtlType::RTL_MISSION_FAST:
+		_rtl_type_handle._rtl_mission->on_inactive();
+		break;
+
+	case RtlType::RTL_MISSION_FAST_REVERSE:
+		_rtl_type_handle._rtl_mission_reverse->on_inactive();
+		break;
+
+	case RtlType::RTL_DIRECT:
+		_rtl_type_handle._rtl_direct->on_inactive();
+		break;
+
+	case RtlType::RTL_DIRECT_MISSION_LAND:
+		_rtl_type_handle._rtl_direct_mission_land->on_inactive();
+		break;
+
+	default:
+		break;
+	}
 
 	// Limit inactive calculation to 1Hz
 	hrt_abstime now{hrt_absolute_time()};
@@ -214,16 +229,20 @@ void RTL::on_inactive()
 
 		if (_navigator->home_global_position_valid() && global_position_recently_updated) {
 			switch (_rtl_type) {
-			case RtlType::RTL_DIRECT: estimated_time = _rtl_direct.calc_rtl_time_estimate();
+			case RtlType::RTL_DIRECT:
+				estimated_time = _rtl_type_handle._rtl_direct->calc_rtl_time_estimate();
 				break;
 
-			case RtlType::RTL_DIRECT_MISSION_LAND: estimated_time = _rtl_direct_mission_land.calc_rtl_time_estimate();
+			case RtlType::RTL_DIRECT_MISSION_LAND:
+				estimated_time = _rtl_type_handle._rtl_direct_mission_land->calc_rtl_time_estimate();
 				break;
 
-			case RtlType::RTL_MISSION_FAST: estimated_time = _rtl_mission.calc_rtl_time_estimate();
+			case RtlType::RTL_MISSION_FAST:
+				estimated_time = _rtl_type_handle._rtl_mission->calc_rtl_time_estimate();
 				break;
 
-			case RtlType::RTL_MISSION_FAST_REVERSE: estimated_time = _rtl_mission_reverse.calc_rtl_time_estimate();
+			case RtlType::RTL_MISSION_FAST_REVERSE:
+				estimated_time = _rtl_type_handle._rtl_mission_reverse->calc_rtl_time_estimate();
 				break;
 
 			default: break;
@@ -240,19 +259,19 @@ void RTL::on_activation()
 
 	switch (_rtl_type) {
 	case RtlType::RTL_MISSION_FAST:
-		_rtl_mission.on_activation();
+		_rtl_type_handle._rtl_mission->on_activation();
 		break;
 
 	case RtlType::RTL_MISSION_FAST_REVERSE:
-		_rtl_mission_reverse.on_activation();
+		_rtl_type_handle._rtl_mission_reverse->on_activation();
 		break;
 
 	case RtlType::RTL_DIRECT:
-		_rtl_direct.on_activation(_enforce_rtl_alt);
+		_rtl_type_handle._rtl_direct->on_activation(_enforce_rtl_alt);
 		break;
 
 	case RtlType::RTL_DIRECT_MISSION_LAND:
-		_rtl_direct_mission_land.on_activation(_enforce_rtl_alt);
+		_rtl_type_handle._rtl_direct_mission_land->on_activation(_enforce_rtl_alt);
 		break;
 
 	default:
@@ -271,31 +290,19 @@ void RTL::on_active()
 
 	switch (_rtl_type) {
 	case RtlType::RTL_MISSION_FAST:
-		_rtl_mission.on_active();
-		_rtl_mission_reverse.on_inactive();
-		_rtl_direct.on_inactive();
-		_rtl_direct_mission_land.on_inactive();
+		_rtl_type_handle._rtl_mission->on_active();
 		break;
 
 	case RtlType::RTL_MISSION_FAST_REVERSE:
-		_rtl_mission_reverse.on_active();
-		_rtl_mission.on_inactive();
-		_rtl_direct.on_inactive();
-		_rtl_direct_mission_land.on_inactive();
+		_rtl_type_handle._rtl_mission_reverse->on_active();
 		break;
 
 	case RtlType::RTL_DIRECT:
-		_rtl_direct.on_active();
-		_rtl_direct_mission_land.on_inactive();
-		_rtl_mission_reverse.on_inactive();
-		_rtl_mission.on_inactive();
+		_rtl_type_handle._rtl_direct->on_active();
 		break;
 
 	case RtlType::RTL_DIRECT_MISSION_LAND:
-		_rtl_direct_mission_land.on_active();
-		_rtl_mission_reverse.on_inactive();
-		_rtl_mission.on_inactive();
-		_rtl_direct.on_inactive();
+		_rtl_type_handle._rtl_direct_mission_land->on_active();
 		break;
 
 	default:
@@ -305,30 +312,45 @@ void RTL::on_active()
 
 void RTL::setRtlTypeAndDestination()
 {
+	RtlType new_rtl_type;
+	RtlDirect::RtlPosition rtl_position;
+	float rtl_alt;
+
 	if (_param_rtl_type.get() == 2) {
 		if (hasMissionLandStart()) {
-			_rtl_type = RtlType::RTL_MISSION_FAST;
+			new_rtl_type = RtlType::RTL_MISSION_FAST;
 
 		} else {
-			_rtl_type = RtlType::RTL_MISSION_FAST_REVERSE;
+			new_rtl_type = RtlType::RTL_MISSION_FAST_REVERSE;
 		}
 
 	} else {
 		// check the closest allowed destination.
 		bool isMissionLanding{false};
-		RtlDirect::RtlPosition rtl_position;
-		float rtl_alt;
 		findRtlDestination(isMissionLanding, rtl_position, rtl_alt);
 
 		if (isMissionLanding) {
-			_rtl_direct_mission_land.setRtlAlt(rtl_alt);
-			_rtl_type = RtlType::RTL_DIRECT_MISSION_LAND;
+
+			new_rtl_type = RtlType::RTL_DIRECT_MISSION_LAND;
 
 		} else {
-			_rtl_direct.setRtlAlt(rtl_alt);
-			_rtl_direct.setRtlPosition(rtl_position);
-			_rtl_type = RtlType::RTL_DIRECT;
+
+			new_rtl_type = RtlType::RTL_DIRECT;
 		}
+	}
+
+	if (new_rtl_type != _rtl_type) {
+		deinit_rtl_type();
+		init_rtl_type(new_rtl_type);
+	}
+
+	if (_rtl_type == RtlType::RTL_DIRECT_MISSION_LAND) {
+		_rtl_type_handle._rtl_direct_mission_land->setRtlAlt(rtl_alt);
+	}
+
+	if (_rtl_type == RtlType::RTL_DIRECT) {
+		_rtl_type_handle._rtl_direct->setRtlAlt(rtl_alt);
+		_rtl_type_handle._rtl_direct->setRtlPosition(rtl_position);
 	}
 }
 
@@ -372,7 +394,7 @@ void RTL::findRtlDestination(bool &isMissionLanding, RtlDirect::RtlPosition &rtl
 
 		float dist{get_distance_to_next_waypoint(_global_pos_sub.get().lat, _global_pos_sub.get().lon, land_mission_item.lat, land_mission_item.lon)};
 
-		if (dist < min_dist) {
+		if ((dist + MIN_DIST_THRESHOLD) < min_dist) {
 			min_dist = dist;
 			setLandPosAsDestination(rtl_position, land_mission_item);
 			isMissionLanding = true;
@@ -395,7 +417,7 @@ void RTL::findRtlDestination(bool &isMissionLanding, RtlDirect::RtlPosition &rtl
 
 			float dist{get_distance_to_next_waypoint(_global_pos_sub.get().lat, _global_pos_sub.get().lon, mission_safe_point.lat, mission_safe_point.lon)};
 
-			if (dist < min_dist) {
+			if ((dist + MIN_DIST_THRESHOLD) < min_dist) {
 				min_dist = dist;
 				setSafepointAsDestination(rtl_position, mission_safe_point);
 				isMissionLanding = false;
@@ -485,6 +507,72 @@ float RTL::calculate_return_alt_from_cone_half_angle(const RtlDirect::RtlPositio
 	return max(return_altitude_amsl, _global_pos_sub.get().alt);
 }
 
+void RTL::init_rtl_type(RtlType rtl_type)
+{
+	if (_rtl_type != RtlType::NONE) {
+		PX4_ERR("Could not initialize RTL type, already one exists.");
+	}
+
+	switch (rtl_type) {
+	case RtlType::RTL_DIRECT:
+		_rtl_type_handle._rtl_direct = new RtlDirect(_navigator);
+		_rtl_type = RtlType::RTL_DIRECT;
+		break;
+
+	case RtlType::RTL_DIRECT_MISSION_LAND:
+		_rtl_type_handle._rtl_direct_mission_land = new RtlDirectMissionLand(_navigator);
+		_rtl_type = RtlType::RTL_DIRECT_MISSION_LAND;
+		break;
+
+	case RtlType::RTL_MISSION_FAST:
+		_rtl_type_handle._rtl_mission = new RtlMissionFast(_navigator);
+		_rtl_type = RtlType::RTL_MISSION_FAST;
+		break;
+
+	case RtlType::RTL_MISSION_FAST_REVERSE:
+		_rtl_type_handle._rtl_mission_reverse = new RtlMissionFastReverse(_navigator);
+		_rtl_type = RtlType::RTL_MISSION_FAST_REVERSE;
+		break;
+
+	case RtlType::NONE:
+	default:
+		_rtl_type = RtlType::NONE;
+	}
+}
+
+void RTL::deinit_rtl_type()
+{
+	switch (_rtl_type) {
+	case RtlType::RTL_DIRECT:
+		delete _rtl_type_handle._rtl_direct;
+		_rtl_type_handle._rtl_direct = nullptr;
+		_rtl_type = RtlType::NONE;
+		break;
+
+	case RtlType::RTL_DIRECT_MISSION_LAND:
+		delete _rtl_type_handle._rtl_direct_mission_land;
+		_rtl_type_handle._rtl_direct_mission_land = nullptr;
+		_rtl_type = RtlType::NONE;
+		break;
+
+	case RtlType::RTL_MISSION_FAST:
+		delete _rtl_type_handle._rtl_mission;
+		_rtl_type_handle._rtl_mission = nullptr;
+		_rtl_type = RtlType::NONE;
+		break;
+
+	case RtlType::RTL_MISSION_FAST_REVERSE:
+		delete _rtl_type_handle._rtl_mission_reverse;
+		_rtl_type_handle._rtl_mission_reverse = nullptr;
+		_rtl_type = RtlType::NONE;
+		break;
+
+	case RtlType::NONE: // Fallthrough
+	default:
+		PX4_ERR("Unable to deinitialize RTL type. None initialized");
+	}
+}
+
 void RTL::parameters_update()
 {
 	if (_parameter_update_sub.updated()) {
@@ -495,7 +583,9 @@ void RTL::parameters_update()
 		// this class attributes need updating (and do so).
 		updateParams();
 
-		setRtlTypeAndDestination();
+		if (!isActive()) {
+			setRtlTypeAndDestination();
+		}
 	}
 }
 
