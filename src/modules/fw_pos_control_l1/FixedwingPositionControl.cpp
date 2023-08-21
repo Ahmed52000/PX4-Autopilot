@@ -40,6 +40,7 @@ FixedwingPositionControl::FixedwingPositionControl(bool vtol) :
 	WorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers),
 	_attitude_sp_pub(vtol ? ORB_ID(fw_virtual_attitude_setpoint) : ORB_ID(vehicle_attitude_setpoint)),
 	_loop_perf(perf_alloc(PC_ELAPSED, MODULE_NAME": cycle")),
+	_L1_data_pub(vtol ? ORB_ID(L1_validation) : ORB_ID(L1_validation)),
 	_launchDetector(this),
 	_runway_takeoff(this)
 {
@@ -684,6 +685,19 @@ FixedwingPositionControl::control_position(const hrt_abstime &now, const Vector2
 			_att_sp.roll_body = _l1_control.get_roll_setpoint();
 			_att_sp.yaw_body = _l1_control.nav_bearing();
 
+
+			_L1_data.prev_wp_x = prev_wp(0);
+			_L1_data.prev_wp_y = prev_wp(1);
+			_L1_data.curr_wp_x = curr_wp(0);
+			_L1_data.curr_wp_y = curr_wp(1);
+			_L1_data.curr_pos_x = curr_pos(0);
+			_L1_data.curr_pos_y = curr_pos(1);
+			_L1_data.nav_speed_x = nav_speed_2d(0);
+			_L1_data.nav_speed_y = nav_speed_2d(1);
+			_L1_data.roll_body = _att_sp.roll_body;
+			_L1_data.yaw_body = _att_sp.yaw_body;
+
+
 			tecs_update_pitch_throttle(now, pos_sp_curr.alt,
 						   calculate_target_airspeed(mission_airspeed, ground_speed),
 						   radians(_param_fw_p_lim_min.get()) - radians(_param_fw_psp_off.get()),
@@ -868,6 +882,19 @@ FixedwingPositionControl::control_position(const hrt_abstime &now, const Vector2
 				_att_sp.roll_body = _l1_control.get_roll_setpoint();
 				_att_sp.yaw_body = _l1_control.nav_bearing();
 
+
+				_L1_data.prev_wp_x = prev_wp(0);
+				_L1_data.prev_wp_y = prev_wp(1);
+				_L1_data.curr_wp_x = curr_wp(0);
+				_L1_data.curr_wp_y = curr_wp(1);
+				_L1_data.curr_pos_x = curr_pos(0);
+				_L1_data.curr_pos_y = curr_pos(1);
+				_L1_data.nav_speed_x = ground_speed(0);
+				_L1_data.nav_speed_y = ground_speed(1);
+				_L1_data.roll_body = _att_sp.roll_body;
+				_L1_data.yaw_body = _att_sp.yaw_body;
+
+
 				if (in_takeoff_situation()) {
 					/* limit roll motion to ensure enough lift */
 					_att_sp.roll_body = constrain(_att_sp.roll_body, radians(-15.0f), radians(15.0f));
@@ -1004,6 +1031,8 @@ FixedwingPositionControl::control_position(const hrt_abstime &now, const Vector2
 	} else {
 		_last_manual = true;
 	}
+	_L1_data.timestamp = hrt_absolute_time();
+  	_L1_data_pub.publish(_L1_data);
 
 	return setpoint;
 }

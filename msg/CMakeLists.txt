@@ -72,6 +72,7 @@ set(msg_files
 	input_rc.msg
 	iridiumsbd_status.msg
 	irlock_report.msg
+	L1_validation.msg
 	landing_gear.msg
 	landing_target_innovations.msg
 	landing_target_pose.msg
@@ -167,6 +168,7 @@ set(msg_files
 	wheel_encoders.msg
 	wind_estimate.msg
 	yaw_estimator_status.msg
+
 )
 
 set(deprecated_msgs
